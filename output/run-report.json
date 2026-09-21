@@ -1,0 +1,12 @@
+{
+  "start_time": "2026-09-21T15:24:22Z",
+  "duration_seconds": 3.274,
+  "catalogue_pages_fetched": 0,
+  "cache_hits": 63,
+  "detail_pages_fetched": 0,
+  "valid_records": 60,
+  "invalid_records": 0,
+  "failed_pages": [
+    "https://books.toscrape.com/catalogue/this-book-does-not-exist_9999/index.html"
+  ]
+}
