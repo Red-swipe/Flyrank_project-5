@@ -7,14 +7,30 @@ from urllib.parse import urljoin
 
 import requests
 from bs4 import BeautifulSoup
+from pydantic import BaseModel, HttpUrl, ValidationError
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 CACHE_DIR = BASE_DIR / "cache"
+OUTPUT_DIR = BASE_DIR / "output"
+BOOKS_FILE = OUTPUT_DIR / "books.json"
+ERRORS_FILE = OUTPUT_DIR / "errors.json"
 URL = "https://books.toscrape.com/"
 HEADERS = {
     "User-Agent": "FlyRankInternshipA9/1.0 ([https://github.com/Red-swipe/Flyrank_project-5](https://github.com/Red-swipe/Flyrank_project-5))"
 }
+
+
+class BookRecord(BaseModel):
+    title: str
+    product_url: HttpUrl
+    price_text: str
+    price_gbp: float
+    availability_text: str
+    rating_text: str
+    description: str | None
+    source_page: str
+    fetched_at: str
 
 
 def utc_timestamp():
@@ -42,6 +58,19 @@ def load_page(url, cache_file):
 
 def parse_html(content):
     return BeautifulSoup(content.decode("utf-8"), "html.parser")
+
+
+def normalize_record(raw_record):
+    price_gbp = float(raw_record["price_text"].replace("£", "").strip())
+    return {
+        **raw_record,
+        "price_gbp": price_gbp,
+    }
+
+
+def validate_record(record):
+    validated = BookRecord.model_validate(record)
+    return validated.model_dump(mode="json")
 
 
 page_urls = [URL]
@@ -73,7 +102,7 @@ for page_url, source_page, content in page_contents:
         })
 
 
-records = []
+raw_records = []
 for book in books:
     product_url = book["product_url"]
     cache_name = hashlib.sha256(product_url.encode("utf-8")).hexdigest()
@@ -103,7 +132,7 @@ for book in books:
         rating_classes = [name for name in rating.get("class", []) if name != "star-rating"]
         rating_text = rating_classes[0] if rating_classes else None
 
-    records.append({
+    raw_records.append({
         "title": title.get_text(strip=True) if title else None,
         "product_url": product_url,
         "price_text": price.get_text(strip=True) if price else None,
@@ -115,10 +144,30 @@ for book in books:
     })
 
 
-unique_urls = {book["product_url"] for book in books}
-if len(unique_urls) != 60:
-    print(f"ERROR: expected 60 unique book URLs, found {len(unique_urls)}")
-    raise SystemExit(1)
+good_by_url = {}
+errors = []
 
-print(json.dumps(records[0], indent=2, ensure_ascii=False))
-print(f"detail_pages={len(records)}")
+if BOOKS_FILE.exists():
+    existing_records = json.loads(BOOKS_FILE.read_text(encoding="utf-8"))
+    for existing_record in existing_records:
+        try:
+            validated_record = validate_record(existing_record)
+            good_by_url[str(validated_record["product_url"])] = validated_record
+        except ValidationError as exc:
+            errors.append({"record": existing_record, "reason": str(exc)})
+
+for raw_record in raw_records:
+    try:
+        normalized_record = normalize_record(raw_record)
+        validated_record = validate_record(normalized_record)
+        good_by_url[str(validated_record["product_url"])] = validated_record
+    except (KeyError, TypeError, ValueError, ValidationError) as exc:
+        errors.append({"record": raw_record, "reason": str(exc)})
+
+
+good_records = list(good_by_url.values())
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+BOOKS_FILE.write_text(json.dumps(good_records, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+ERRORS_FILE.write_text(json.dumps(errors, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+print(f"valid={len(good_records)} invalid={len(errors)}")
