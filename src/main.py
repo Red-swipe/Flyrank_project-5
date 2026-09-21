@@ -18,7 +18,7 @@ ERRORS_FILE = OUTPUT_DIR / "errors.json"
 REPORT_FILE = OUTPUT_DIR / "run-report.json"
 URL = "https://books.toscrape.com/"
 HEADERS = {
-    "User-Agent": "FlyRankInternshipA9/1.0 ([https://github.com/Red-swipe/Flyrank_project-5](https://github.com/Red-swipe/Flyrank_project-5))"
+    "User-Agent": "FlyRankInternshipA9/1.0 (+https://github.com/Red-swipe/Flyrank_project-5)"
 }
 
 stats = {
@@ -242,4 +242,4 @@ run_report = {
 }
 REPORT_FILE.write_text(json.dumps(run_report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
-print(f"valid={len(good_records)} invalid={len(errors)}")
+print(f"valid_records={len(good_records)} invalid_records={len(errors)}")
